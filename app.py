@@ -242,13 +242,16 @@ def show_main():
                             st.warning("Already in your list.")
                 with c2:
                     if projects:
-                        to_del = st.selectbox("Remove", ["— select —"] + projects, key="del_proj")
-                        if st.button("Remove selected", use_container_width=True):
-                            if to_del != "— select —":
-                                projects = [p for p in projects if p != to_del]
-                                st.session_state.projects = projects
-                                _save_projects(projects)
-                                st.rerun()
+                        st.markdown("**Remove projects:**")
+                        to_remove = []
+                        for p in projects:
+                            if st.checkbox(p, value=False, key=f"rm_{p}"):
+                                to_remove.append(p)
+                        if to_remove and st.button("Remove checked", use_container_width=True, type="primary"):
+                            projects = [p for p in projects if p not in to_remove]
+                            st.session_state.projects = projects
+                            _save_projects(projects)
+                            st.rerun()
 
             with tab_browse:
                 st.info("First load takes ~5–10 minutes; cached for 7 days.")
