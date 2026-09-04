@@ -255,25 +255,22 @@ def show_main():
             except Exception:
                 st.warning("Project list not loaded yet.")
 
-            if projects:
-                st.markdown("---")
-                st.markdown("**Remove projects:**")
-                to_remove = []
-                for p in projects:
-                    if st.checkbox(p, value=False, key=f"rm_{p}"):
-                        to_remove.append(p)
-                if to_remove and st.button("Remove checked", use_container_width=True, type="primary"):
-                    projects = [p for p in projects if p not in to_remove]
-                    st.session_state.projects = projects
-                    _save_projects(projects)
-                    st.rerun()
         if projects:
             st.markdown("**SELECT PROJECTS TO INCLUDE**")
-            if st.button("Uncheck all", key="proj_unsel_all"):
-                for j in range(len(projects)):
-                    st.session_state[f"proj_{j}"] = False
-            chosen  = []
-            cols    = st.columns(2)
+            btn_col1, btn_col2 = st.columns(2)
+            with btn_col1:
+                if st.button("Uncheck all", key="proj_unsel_all", use_container_width=True):
+                    for j in range(len(projects)):
+                        st.session_state[f"proj_{j}"] = False
+            with btn_col2:
+                if st.button("Remove unchecked", key="proj_remove_unchecked", use_container_width=True, type="primary"):
+                    keep = [p for i, p in enumerate(projects) if st.session_state.get(f"proj_{i}", True)]
+                    if keep != projects:
+                        st.session_state.projects = keep
+                        _save_projects(keep)
+                        st.rerun()
+            chosen = []
+            cols   = st.columns(2)
             for i, p in enumerate(projects):
                 with cols[i % 2]:
                     if st.checkbox(p, value=True, key=f"proj_{i}"):
