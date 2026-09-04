@@ -53,12 +53,12 @@ YEAR_RANGE = list(range(URA_EARLIEST_YEAR, _now.year + 1))
 
 COL_MAP = [
     ("Project Name", "Project Name"),
-    ("Address",      "Street Name"),
-    ("Size",         "Area (sqft)"),
-    ("PSF",          "Unit Price ($ PSF)"),
+    ("Street",       "Street Name"),
+    ("Area",         "Area (sqft)"),
+    ("Per Square Foot", "Unit Price ($ PSF)"),
     ("Price",        "Transacted Price ($)"),
-    ("Date",         "Sale Date"),
     ("Tenure",       "Tenure"),
+    ("Date",         "Sale Date"),
     ("Property Type","Property Type"),
 ]
 
@@ -381,7 +381,7 @@ def collect_rows_website(progress_cb, loc_filters=None, from_dt=None, to_dt=None
 # ── Excel export (returns bytes for st.download_button) ───────────────────
 def write_excel_to_bytes(rows, loc_filters):
     import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment, Border
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
     def _sort_key(r):
         sd = r.get("Sale Date")
@@ -394,11 +394,12 @@ def write_excel_to_bytes(rows, loc_filters):
     rows      = sorted(rows, key=_sort_key, reverse=True)
     headers   = [c[0] for c in COL_MAP]
     data_keys = [c[1] for c in COL_MAP]
-    hf        = PatternFill("solid", fgColor="595959")
+    hf        = PatternFill("solid", fgColor="1F4E79")
     hfont     = Font(bold=True, color="FFFFFF", size=10)
-    border    = Border()
-    COL_FMT   = {3: '#,##0" sqft"', 4: "$#,##0", 5: "$#,##0", 6: "mmm-yy"}
-    alt       = PatternFill("solid", fgColor="F2F2F2")
+    thin      = Side(style="thin", color="B8CCE4")
+    border    = Border(left=thin, right=thin, top=thin, bottom=thin)
+    COL_FMT   = {3: '#,##0" sqft"', 4: "$#,##0", 5: "$#,##0", 7: "mmm-yy"}
+    alt       = PatternFill("solid", fgColor="D9E8F5")
     col_widths = [28, 26, 12, 20, 16, 12, 32, 20]
 
     def _write_sheet(ws, sheet_rows):
