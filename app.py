@@ -182,7 +182,6 @@ def show_main():
     user = st.session_state.user
 
     with st.sidebar:
-        st.markdown("### 🏠 AYD Downloader")
         st.caption(f"Logged in as **{user.email}**")
         st.markdown("---")
         if st.button("Logout", use_container_width=True):
@@ -284,12 +283,20 @@ def show_main():
 
         if projects:
             st.markdown("**SELECT PROJECTS TO INCLUDE**")
-            sel_all = st.checkbox("Select all", value=True, key="proj_sel_all")
+            chk_col1, chk_col2 = st.columns(2)
+            with chk_col1:
+                if st.checkbox("Select all", value=False, key="proj_sel_all"):
+                    for j in range(len(projects)):
+                        st.session_state[f"proj_{j}"] = True
+            with chk_col2:
+                if st.checkbox("Unselect all", value=False, key="proj_unsel_all"):
+                    for j in range(len(projects)):
+                        st.session_state[f"proj_{j}"] = False
             chosen  = []
             cols    = st.columns(2)
             for i, p in enumerate(projects):
                 with cols[i % 2]:
-                    if st.checkbox(p, value=sel_all, key=f"proj_{i}"):
+                    if st.checkbox(p, value=True, key=f"proj_{i}"):
                         chosen.append(p)
             loc_filters = chosen if chosen else projects
         else:
