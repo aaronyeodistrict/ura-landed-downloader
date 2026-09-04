@@ -273,7 +273,7 @@ def show_main():
             cols   = st.columns(2)
             for i, p in enumerate(projects):
                 with cols[i % 2]:
-                    if st.checkbox(p, value=True, key=f"proj_{i}"):
+                    if st.checkbox(p, value=False, key=f"proj_{i}"):
                         chosen.append(p)
             loc_filters = chosen if chosen else projects
         else:
