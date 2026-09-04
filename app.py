@@ -387,7 +387,7 @@ def show_main():
         )
 
     st.markdown("---")
-    st.caption("By: Aaron Yeo")
+    st.caption("By: Aaron Yeo, The Landed Collective ©")
 
 # ── Entry point ────────────────────────────────────────────────────────────
 _init_session()
