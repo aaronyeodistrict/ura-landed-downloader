@@ -1,5 +1,5 @@
 """
-AYD Landed Transaction Downloader — Web App
+The Landed Collective — Web App
 Streamlit UI + Supabase authentication (admin-managed accounts).
 """
 
@@ -31,7 +31,7 @@ def _show_logos():
 
 # ── Page config ────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="AYD Landed Transaction Downloader",
+    page_title="The Landed Collective",
     page_icon="🏠",
     layout="wide",
 )
@@ -142,7 +142,7 @@ def show_login():
     _, col, _ = st.columns([1, 1.2, 1])
     with col:
         _show_logos()
-        st.markdown("## 🏠 AYD Landed Transaction Downloader")
+        st.markdown("## 🏠 The Landed Collective")
         st.markdown("---")
 
         tab_login, tab_reset = st.tabs(["Login", "Forgot Password"])
@@ -222,7 +222,7 @@ def show_main():
                         st.error(f"Failed: {e}")
 
     _show_logos()
-    st.title("AYD Landed Transaction Downloader")
+    st.title("The Landed Collective")
     st.caption("Singapore landed resale transactions from URA · Admin-access only")
     st.divider()
 
