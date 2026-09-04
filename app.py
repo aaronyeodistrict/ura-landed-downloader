@@ -170,6 +170,32 @@ def _save_projects(projects):
 def show_main():
     user = st.session_state.user
 
+    st.markdown("""
+    <style>
+    /* Main background */
+    .stApp { background-color: #000000; }
+    /* Sidebar */
+    [data-testid="stSidebar"] { background-color: #111111; }
+    /* Text */
+    html, body, [class*="css"], .stMarkdown, .stCaption, label,
+    .stRadio label, .stCheckbox label, p, h1, h2, h3, h4 {
+        color: #FFFFFF !important;
+    }
+    /* Input fields */
+    input, textarea, select {
+        background-color: #1a1a1a !important;
+        color: #FFFFFF !important;
+        border: 1px solid #444 !important;
+    }
+    /* Expander */
+    [data-testid="stExpander"] { border-color: #333 !important; }
+    /* Divider */
+    hr { border-color: #333 !important; }
+    /* Metric / caption */
+    .stCaption { color: #AAAAAA !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
     with st.sidebar:
         st.markdown("### 🏠 AYD Downloader")
         st.caption(f"Logged in as **{user.email}**")
