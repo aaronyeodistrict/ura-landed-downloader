@@ -264,7 +264,7 @@ def show_main():
                         st.session_state[f"proj_{j}"] = False
             with btn_col2:
                 if st.button("Remove Project", key="proj_remove_unchecked", use_container_width=True, type="primary"):
-                    keep = [p for i, p in enumerate(projects) if st.session_state.get(f"proj_{i}", True)]
+                    keep = [p for i, p in enumerate(projects) if not st.session_state.get(f"proj_{i}", True)]
                     if keep != projects:
                         st.session_state.projects = keep
                         _save_projects(keep)
