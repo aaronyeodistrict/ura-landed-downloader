@@ -4,6 +4,7 @@ Streamlit UI + Supabase authentication (admin-managed accounts).
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 from supabase import create_client, Client
 from datetime import datetime
 from ura_utils import (
@@ -35,19 +36,89 @@ def _cached_project_names():
 
 # ── Auth helpers ───────────────────────────────────────────────────────────
 def _init_session():
-    if "user" not in st.session_state:
-        st.session_state.user = None
-    if "projects" not in st.session_state:
-        st.session_state.projects = []   # user's saved project list for this session
+    for key, default in [
+        ("user", None),
+        ("projects", []),
+        ("invite_flow", False),
+        ("excel_bytes", None),
+        ("excel_name", None),
+    ]:
+        if key not in st.session_state:
+            st.session_state[key] = default
 
 def _logout():
     try:
         supabase.auth.sign_out()
     except Exception:
         pass
-    st.session_state.user     = None
-    st.session_state.projects = []
+    for key in ["user", "projects", "invite_flow", "excel_bytes", "excel_name"]:
+        st.session_state[key] = None if key == "user" else ([] if key == "projects" else False if key == "invite_flow" else None)
     st.rerun()
+
+# ── Handle Supabase invite / magic-link redirect ───────────────────────────
+def _inject_hash_handler():
+    """JS that converts Supabase hash tokens → query params so Python can read them."""
+    components.html("""
+    <script>
+    (function() {
+        const hash = window.location.hash;
+        if (hash && hash.includes('access_token')) {
+            const p = new URLSearchParams(hash.slice(1));
+            const qs = '?sb_at=' + encodeURIComponent(p.get('access_token') || '')
+                     + '&sb_rt=' + encodeURIComponent(p.get('refresh_token') || '')
+                     + '&sb_tp=' + encodeURIComponent(p.get('type') || '');
+            history.replaceState(null, '', window.location.pathname + qs);
+            window.location.reload();
+        }
+    })();
+    </script>
+    """, height=0)
+
+def _check_invite_params():
+    """If URL has Supabase tokens, set the session and enter invite flow."""
+    qp = st.query_params
+    if "sb_at" not in qp:
+        return
+    access_token  = qp.get("sb_at", "")
+    refresh_token = qp.get("sb_rt", "")
+    token_type    = qp.get("sb_tp", "")
+    if not access_token:
+        return
+    try:
+        resp = supabase.auth.set_session(access_token, refresh_token)
+        st.session_state.user = resp.user
+        meta = resp.user.user_metadata or {}
+        st.session_state.projects = meta.get("projects", [])
+        st.session_state.invite_flow = (token_type in ("invite", "recovery"))
+        st.query_params.clear()
+        st.rerun()
+    except Exception as e:
+        st.error(f"Invitation link error — please ask admin to resend: {e}")
+        st.stop()
+
+# ── Set password page (shown after invite) ─────────────────────────────────
+def show_set_password():
+    _, col, _ = st.columns([1, 1.2, 1])
+    with col:
+        st.markdown("## 🏠 Welcome!")
+        st.markdown("You've been invited. Please set your own password to complete sign-up.")
+        st.markdown("---")
+        new_pass     = st.text_input("New Password", type="password")
+        confirm_pass = st.text_input("Confirm Password", type="password")
+        if st.button("Set Password & Log In", use_container_width=True, type="primary"):
+            if not new_pass:
+                st.error("Please enter a password.")
+            elif new_pass != confirm_pass:
+                st.error("Passwords don't match.")
+            elif len(new_pass) < 6:
+                st.error("Password must be at least 6 characters.")
+            else:
+                try:
+                    supabase.auth.update_user({"password": new_pass})
+                    st.session_state.invite_flow = False
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to set password: {e}")
 
 # ── Login page ─────────────────────────────────────────────────────────────
 def show_login():
@@ -57,7 +128,6 @@ def show_login():
         st.markdown("---")
         email    = st.text_input("Email", placeholder="you@example.com")
         password = st.text_input("Password", type="password")
-
         if st.button("Login", use_container_width=True, type="primary"):
             if not email or not password:
                 st.error("Please enter your email and password.")
@@ -67,7 +137,6 @@ def show_login():
                         {"email": email, "password": password}
                     )
                     st.session_state.user = resp.user
-                    # Restore saved projects from user metadata
                     meta = resp.user.user_metadata or {}
                     st.session_state.projects = meta.get("projects", [])
                     st.rerun()
@@ -77,7 +146,6 @@ def show_login():
                         st.error("Incorrect email or password.")
                     else:
                         st.error(f"Login failed: {msg}")
-
         st.caption("Contact your administrator for access.")
 
 # ── Save projects to Supabase user metadata ────────────────────────────────
@@ -85,13 +153,12 @@ def _save_projects(projects):
     try:
         supabase.auth.update_user({"data": {"projects": projects}})
     except Exception:
-        pass  # non-fatal
+        pass
 
 # ── Main app ───────────────────────────────────────────────────────────────
 def show_main():
     user = st.session_state.user
 
-    # Sidebar
     with st.sidebar:
         st.markdown("### 🏠 AYD Downloader")
         st.caption(f"Logged in as **{user.email}**")
@@ -110,9 +177,7 @@ def show_main():
         horizontal=True,
         label_visibility="collapsed",
     )
-    col_label, _ = st.columns([3, 1])
-    with col_label:
-        st.markdown(f"**FILTER BY:** {filter_mode.upper()}")
+    st.markdown(f"**FILTER BY:** {filter_mode.upper()}")
 
     loc_filters = []
 
@@ -120,7 +185,6 @@ def show_main():
     if filter_mode == "Project Name":
         projects = st.session_state.projects
 
-        # Manage saved projects
         with st.expander("⚙️ Manage / Browse Projects", expanded=not projects):
             tab_manual, tab_browse = st.tabs(["Type Manually", "Browse URA List"])
 
@@ -148,10 +212,7 @@ def show_main():
                                 st.rerun()
 
             with tab_browse:
-                st.info(
-                    "Loads all landed project names from the URA website. "
-                    "First load takes ~5–10 minutes; results are cached for 7 days."
-                )
+                st.info("First load takes ~5–10 minutes; cached for 7 days.")
                 if st.button("Load / Refresh URA Project List", use_container_width=True):
                     with st.spinner("Scanning URA website — this may take several minutes..."):
                         try:
@@ -161,34 +222,26 @@ def show_main():
                             st.rerun()
                         except Exception as e:
                             st.error(f"Failed: {e}")
-
                 try:
                     all_names = _cached_project_names()
                     search_q  = st.text_input("Filter", placeholder="Type to search...")
                     filtered  = [n for n in all_names if search_q.lower() in n.lower()] if search_q else all_names
-                    to_add    = st.multiselect(
-                        f"{len(filtered):,} projects",
-                        options=filtered,
-                        default=[],
-                        key="browse_sel",
-                    )
+                    to_add    = st.multiselect(f"{len(filtered):,} projects", options=filtered, default=[], key="browse_sel")
                     if st.button("Add selected to my list", use_container_width=True, disabled=not to_add):
                         added = 0
                         for name in to_add:
                             if name not in projects:
-                                projects.append(name)
-                                added += 1
+                                projects.append(name); added += 1
                         st.session_state.projects = projects
                         _save_projects(projects)
                         if added:
                             st.success(f"Added {added} project(s).")
                             st.rerun()
                         else:
-                            st.info("All selected projects are already in your list.")
+                            st.info("All selected already in your list.")
                 except Exception:
-                    st.warning("Project list not loaded yet. Click the button above.")
+                    st.warning("Project list not loaded yet.")
 
-        # Project selection checkboxes
         if projects:
             st.markdown("**SELECT PROJECTS TO INCLUDE**")
             sel_all = st.checkbox("Select all", value=True, key="proj_sel_all")
@@ -210,9 +263,7 @@ def show_main():
             loc_filters = list(POSTAL_DISTRICTS)
         else:
             loc_filters = st.multiselect(
-                "Choose districts",
-                options=POSTAL_DISTRICTS,
-                default=[],
+                "Choose districts", options=POSTAL_DISTRICTS, default=[],
                 placeholder="Pick one or more districts...",
             )
             if not loc_filters:
@@ -235,11 +286,7 @@ def show_main():
     if not selected_types:
         selected_types = {"Detached House", "Semi-Detached House", "Terrace House"}
 
-    _api_map = {
-        "Detached House":      "Detached",
-        "Semi-Detached House": "Semi-detached",
-        "Terrace House":       "Terrace",
-    }
+    _api_map = {"Detached House": "Detached", "Semi-Detached House": "Semi-detached", "Terrace House": "Terrace"}
     prop_type_filter = selected_types | {_api_map[k] for k in selected_types}
 
     st.divider()
@@ -251,23 +298,20 @@ def show_main():
     with dr1:
         st.caption("From")
         fc1, fc2 = st.columns(2)
-        with fc1: from_m = st.selectbox("Month", MONTHS, index=0,            key="from_m", label_visibility="collapsed")
-        with fc2: from_y = st.selectbox("Year",  YEAR_RANGE, index=0,        key="from_y", label_visibility="collapsed")
+        with fc1: from_m = st.selectbox("Month", MONTHS, index=0,                  key="from_m", label_visibility="collapsed")
+        with fc2: from_y = st.selectbox("Year",  YEAR_RANGE, index=0,              key="from_y", label_visibility="collapsed")
     with dr2:
         st.caption("To")
         tc1, tc2 = st.columns(2)
-        with tc1: to_m = st.selectbox("Month", MONTHS, index=now.month - 1, key="to_m", label_visibility="collapsed")
-        with tc2: to_y = st.selectbox("Year",  YEAR_RANGE, index=len(YEAR_RANGE) - 1, key="to_y", label_visibility="collapsed")
+        with tc1: to_m = st.selectbox("Month", MONTHS, index=now.month - 1,        key="to_m",   label_visibility="collapsed")
+        with tc2: to_y = st.selectbox("Year",  YEAR_RANGE, index=len(YEAR_RANGE)-1,key="to_y",   label_visibility="collapsed")
 
-    try:
-        from_dt = datetime(int(from_y), MONTHS.index(from_m) + 1, 1)
-    except Exception:
-        from_dt = None
+    try:    from_dt = datetime(int(from_y), MONTHS.index(from_m) + 1, 1)
+    except: from_dt = None
     try:
         tm = MONTHS.index(to_m) + 1; ty = int(to_y)
         to_dt = datetime(ty + 1, 1, 1) if tm == 12 else datetime(ty, tm + 1, 1)
-    except Exception:
-        to_dt = None
+    except: to_dt = None
 
     if from_dt and to_dt and from_dt >= to_dt:
         st.error("'From' date must be before 'To' date.")
@@ -277,41 +321,25 @@ def show_main():
     # ── Download ───────────────────────────────────────────────────────────
     mode = "district" if filter_mode == "Postal District" else "project"
 
-    if "excel_bytes" not in st.session_state:
-        st.session_state.excel_bytes = None
-        st.session_state.excel_name  = None
-
     if st.button("⬇  Download Excel", use_container_width=True, type="primary",
                  disabled=(from_dt and to_dt and from_dt >= to_dt)):
         status_box = st.empty()
         progress   = st.progress(0)
-
-        def _progress(msg, frac=None):
-            status_box.info(f"⏳ {msg}")
-            if frac is not None:
-                progress.progress(min(int(frac * 100), 99))
-
         try:
-            _progress("Connecting to URA website...")
+            status_box.info("⏳ Connecting to URA website...")
             rows = collect_rows_website(
-                lambda msg: _progress(msg),
-                loc_filters=loc_filters,
-                from_dt=from_dt,
-                to_dt=to_dt,
-                mode=mode,
-                prop_types=prop_type_filter,
+                lambda msg: status_box.info(f"⏳ {msg}"),
+                loc_filters=loc_filters, from_dt=from_dt, to_dt=to_dt,
+                mode=mode, prop_types=prop_type_filter,
             )
             if not rows:
-                status_box.warning(
-                    "No matching records found. "
-                    "Try widening the date range or selecting different filters."
-                )
+                status_box.warning("No matching records found. Try widening the date range.")
                 progress.empty()
             else:
-                _progress(f"Writing {len(rows):,} rows to Excel...")
+                status_box.info(f"⏳ Writing {len(rows):,} rows to Excel...")
                 progress.progress(95)
                 xl_bytes = write_excel_to_bytes(rows, loc_filters)
-                fname = f"URA_Landed_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                fname    = f"URA_Landed_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
                 st.session_state.excel_bytes = xl_bytes
                 st.session_state.excel_name  = fname
                 progress.progress(100)
@@ -334,8 +362,12 @@ def show_main():
 
 # ── Entry point ────────────────────────────────────────────────────────────
 _init_session()
+_inject_hash_handler()
+_check_invite_params()
 
-if st.session_state.user is None:
+if st.session_state.get("invite_flow"):
+    show_set_password()
+elif st.session_state.user is None:
     show_login()
 else:
     show_main()
