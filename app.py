@@ -205,8 +205,8 @@ def show_main():
                         st.error(f"Failed: {e}")
 
     _show_logos()
-    st.title("The Landed Collective")
-    st.caption("Singapore landed resale transactions from URA · Admin-access only")
+    st.markdown("<h1 style='text-align:center;'>The Landed Collective</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center; color:grey;'>Singapore Landed Transaction</p>", unsafe_allow_html=True)
     st.divider()
 
     # ── Filter mode ────────────────────────────────────────────────────────
