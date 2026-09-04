@@ -283,15 +283,9 @@ def show_main():
 
         if projects:
             st.markdown("**SELECT PROJECTS TO INCLUDE**")
-            chk_col1, chk_col2 = st.columns(2)
-            with chk_col1:
-                if st.checkbox("Select all", value=False, key="proj_sel_all"):
-                    for j in range(len(projects)):
-                        st.session_state[f"proj_{j}"] = True
-            with chk_col2:
-                if st.checkbox("Unselect all", value=False, key="proj_unsel_all"):
-                    for j in range(len(projects)):
-                        st.session_state[f"proj_{j}"] = False
+            if st.button("Uncheck all", key="proj_unsel_all"):
+                for j in range(len(projects)):
+                    st.session_state[f"proj_{j}"] = False
             chosen  = []
             cols    = st.columns(2)
             for i, p in enumerate(projects):
