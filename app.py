@@ -225,65 +225,48 @@ def show_main():
         projects = st.session_state.projects
 
         with st.expander("⚙️ Manage / Browse Projects", expanded=not projects):
-            tab_manual, tab_browse = st.tabs(["Type Manually", "Browse URA List"])
+            st.info("First load takes ~5–10 minutes; cached for 7 days.")
+            if st.button("Load / Refresh URA Project List", use_container_width=True):
+                with st.spinner("Scanning URA website — this may take several minutes..."):
+                    try:
+                        _cached_project_names.clear()
+                        _cached_project_names()
+                        st.success("Project list refreshed.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed: {e}")
+            try:
+                all_names = _cached_project_names()
+                search_q  = st.text_input("Filter", placeholder="Type to search...")
+                filtered  = [n for n in all_names if search_q.lower() in n.lower()] if search_q else all_names
+                to_add    = st.multiselect(f"{len(filtered):,} projects", options=filtered, default=[], key="browse_sel")
+                if st.button("Add selected to my list", use_container_width=True, disabled=not to_add):
+                    added = 0
+                    for name in to_add:
+                        if name not in projects:
+                            projects.append(name); added += 1
+                    st.session_state.projects = projects
+                    _save_projects(projects)
+                    if added:
+                        st.success(f"Added {added} project(s).")
+                        st.rerun()
+                    else:
+                        st.info("All selected already in your list.")
+            except Exception:
+                st.warning("Project list not loaded yet.")
 
-            with tab_manual:
-                new_name = st.text_input("Add project name", placeholder="e.g. BISHOPSGATE RESIDENCES")
-                c1, c2 = st.columns(2)
-                with c1:
-                    if st.button("Add", use_container_width=True):
-                        name = new_name.strip()
-                        if name and name not in projects:
-                            projects.append(name)
-                            st.session_state.projects = projects
-                            _save_projects(projects)
-                            st.rerun()
-                        elif name in projects:
-                            st.warning("Already in your list.")
-                with c2:
-                    if projects:
-                        st.markdown("**Remove projects:**")
-                        to_remove = []
-                        for p in projects:
-                            if st.checkbox(p, value=False, key=f"rm_{p}"):
-                                to_remove.append(p)
-                        if to_remove and st.button("Remove checked", use_container_width=True, type="primary"):
-                            projects = [p for p in projects if p not in to_remove]
-                            st.session_state.projects = projects
-                            _save_projects(projects)
-                            st.rerun()
-
-            with tab_browse:
-                st.info("First load takes ~5–10 minutes; cached for 7 days.")
-                if st.button("Load / Refresh URA Project List", use_container_width=True):
-                    with st.spinner("Scanning URA website — this may take several minutes..."):
-                        try:
-                            _cached_project_names.clear()
-                            _cached_project_names()
-                            st.success("Project list refreshed.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Failed: {e}")
-                try:
-                    all_names = _cached_project_names()
-                    search_q  = st.text_input("Filter", placeholder="Type to search...")
-                    filtered  = [n for n in all_names if search_q.lower() in n.lower()] if search_q else all_names
-                    to_add    = st.multiselect(f"{len(filtered):,} projects", options=filtered, default=[], key="browse_sel")
-                    if st.button("Add selected to my list", use_container_width=True, disabled=not to_add):
-                        added = 0
-                        for name in to_add:
-                            if name not in projects:
-                                projects.append(name); added += 1
-                        st.session_state.projects = projects
-                        _save_projects(projects)
-                        if added:
-                            st.success(f"Added {added} project(s).")
-                            st.rerun()
-                        else:
-                            st.info("All selected already in your list.")
-                except Exception:
-                    st.warning("Project list not loaded yet.")
-
+            if projects:
+                st.markdown("---")
+                st.markdown("**Remove projects:**")
+                to_remove = []
+                for p in projects:
+                    if st.checkbox(p, value=False, key=f"rm_{p}"):
+                        to_remove.append(p)
+                if to_remove and st.button("Remove checked", use_container_width=True, type="primary"):
+                    projects = [p for p in projects if p not in to_remove]
+                    st.session_state.projects = projects
+                    _save_projects(projects)
+                    st.rerun()
         if projects:
             st.markdown("**SELECT PROJECTS TO INCLUDE**")
             if st.button("Uncheck all", key="proj_unsel_all"):
