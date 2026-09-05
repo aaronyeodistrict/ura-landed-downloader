@@ -3,7 +3,8 @@ URA scraping + Excel utilities — adapted from V1 desktop app for web/server us
 No tkinter. _write_excel returns BytesIO instead of saving to disk.
 """
 
-import subprocess, json, re, csv, io, urllib.parse, html as _html, tempfile, os
+import subprocess, json, re, csv, io, urllib.parse, html as _html, tempfile, os, shutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
@@ -185,19 +186,41 @@ def get_all_project_names_website(progress_cb=None):
                     names.add(pname)
         return names
 
-    all_names = set()
-    total = len(POSTAL_DISTRICTS)
-    for i, district in enumerate(POSTAL_DISTRICTS):
-        if progress_cb:
+    # Get CSRF + cookie once and reuse across all districts
+    csrf, cookie_file = _ura_website_csrf_and_cookies()
+
+    def scan_district(district):
+        # Each thread gets its own cookie file copy to avoid race conditions
+        tmp = tempfile.mktemp(suffix=".txt")
+        shutil.copy2(cookie_file, tmp)
+        try:
+            return _district_names(district, csrf, tmp)
+        except Exception:
+            return set()
+        finally:
             try:
-                progress_cb(i / total, f"Scanning district {i+1}/{total}: {district[:35]}...")
+                os.unlink(tmp)
             except Exception:
                 pass
-        try:
-            csrf, cookie_file = _ura_website_csrf_and_cookies()
-            all_names.update(_district_names(district, csrf, cookie_file))
-        except Exception:
-            pass
+
+    all_names = set()
+    total = len(POSTAL_DISTRICTS)
+    completed = 0
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(scan_district, d): d for d in POSTAL_DISTRICTS}
+        for future in as_completed(futures):
+            completed += 1
+            if progress_cb:
+                try:
+                    progress_cb(completed / total, f"Scanned {completed}/{total} districts...")
+                except Exception:
+                    pass
+            try:
+                all_names.update(future.result())
+            except Exception:
+                pass
+
     return sorted(all_names)
 
 
