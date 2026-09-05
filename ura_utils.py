@@ -137,7 +137,7 @@ def get_all_project_names_website(progress_cb=None):
             "loadAnalysis": "true", "displayAnalysis": "false", "displayChart": "true",
             "displayAnalysisFilters": "true", "dashboardDisplay": "false",
             "locationDetails": loc_json,
-            "saleYearFrom": str(now.year - 3), "saleMonthFrom": "1",
+            "saleYearFrom": str(now.year - 5), "saleMonthFrom": "1",
             "saleYearTo": str(now.year), "saleMonthTo": str(now.month),
             "saleType": "3", "_saleType": "1", "propertyTypeGroupNo": "1", "_csrf": csrf,
         }
@@ -149,7 +149,7 @@ def get_all_project_names_website(progress_cb=None):
                   "-H", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                   "-b", cookie_file, "-c", cookie_file,
                   "-H", "Content-Type: application/x-www-form-urlencoded"]
-        st1, _, _ = _curl_raw(base, extra_args=c_srch + ["-X", "POST", "-d", _enc(search_fields)], timeout=30)
+        st1, _, _ = _curl_raw(base, extra_args=c_srch + ["-X", "POST", "-d", _enc(search_fields)], timeout=20)
         resp1 = st1.decode("utf-8", errors="replace")
         if "resultForm" not in resp1:
             return set()
@@ -173,7 +173,7 @@ def get_all_project_names_website(progress_cb=None):
         dl_body = _enc(dl_fields)
         for c in range(1, 18):
             dl_body += f"&selectColumn={c}"
-        st2, _, _ = _curl_raw(actual_url, extra_args=c_dl + ["-X", "POST", "-d", dl_body, "-L", "--max-redirs", "5"], timeout=60)
+        st2, _, _ = _curl_raw(actual_url, extra_args=c_dl + ["-X", "POST", "-d", dl_body, "-L", "--max-redirs", "5"], timeout=30)
         csv_text = st2.decode("utf-8-sig", errors="replace").lstrip("\r\n ")
         if "Project Name" not in csv_text[:500]:
             return set()
@@ -207,7 +207,7 @@ def get_all_project_names_website(progress_cb=None):
     total = len(POSTAL_DISTRICTS)
     completed = 0
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         futures = {executor.submit(scan_district, d): d for d in POSTAL_DISTRICTS}
         for future in as_completed(futures):
             completed += 1
